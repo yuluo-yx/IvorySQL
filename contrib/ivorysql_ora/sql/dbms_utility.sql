@@ -558,18 +558,20 @@ DO $$
 DECLARE
   v_wall NUMBER;
   v_cpu NUMBER;
-  v_wall_type TEXT;
-  v_cpu_type TEXT;
+  v_wall_type pg_catalog.regtype;
+  v_cpu_type pg_catalog.regtype;
 BEGIN
   v_wall := DBMS_UTILITY.GET_TIME;
   v_cpu := DBMS_UTILITY.GET_CPU_TIME;
 
-  SELECT pg_catalog.pg_typeof(sys.ora_get_time())::TEXT
+  SELECT pg_catalog.pg_typeof(sys.ora_get_time())
     INTO v_wall_type;
-  SELECT pg_catalog.pg_typeof(sys.ora_get_cpu_time())::TEXT
+  SELECT pg_catalog.pg_typeof(sys.ora_get_cpu_time())
     INTO v_cpu_type;
 
-  IF v_wall_type != 'sys.number' OR v_cpu_type != 'sys.number' THEN
+  -- Compare type OIDs because search_path affects displayed type names.
+  IF v_wall_type IS DISTINCT FROM 'sys.number'::pg_catalog.regtype OR
+     v_cpu_type IS DISTINCT FROM 'sys.number'::pg_catalog.regtype THEN
     RAISE EXCEPTION 'timer package result type mismatch: %, %',
       v_wall_type, v_cpu_type;
   END IF;

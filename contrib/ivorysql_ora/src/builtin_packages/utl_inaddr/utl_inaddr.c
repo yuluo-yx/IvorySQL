@@ -24,6 +24,7 @@
 
 #include <netdb.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 #include "common/ip.h"
 #include "fmgr.h"

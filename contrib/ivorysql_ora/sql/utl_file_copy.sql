@@ -26,6 +26,7 @@ INSERT INTO fcopy_cases VALUES
     ('empty_lines', substring(decode('00', 'hex'), 1, 0),
         substring(decode('00', 'hex'), 1, 0), substring(decode('00', 'hex'), 1, 0)),
     ('crlf', decode('610d', 'hex'), decode('620d', 'hex'), decode('630d', 'hex')),
+    ('ctrl_z', decode('611a62', 'hex'), decode('631a64', 'hex'), decode('651a66', 'hex')),
     ('utf8', decode('e4b8ade69687', 'hex'), decode('c3a9f09f9880', 'hex'), decode('e697a5', 'hex')),
     ('buffer_edge', convert_to(repeat('a', 8191), 'UTF8'),
         convert_to(repeat('b', 8192), 'UTF8'), convert_to(repeat('c', 8193), 'UTF8')),

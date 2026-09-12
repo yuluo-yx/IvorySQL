@@ -507,7 +507,7 @@ ora_utl_file_fcopy(PG_FUNCTION_ARGS)
 				errmsg("end_line must be positive (%d passed)", end_line)));
 
 	/* FCOPY streams belong to this transaction, unlike FOPEN handles. */
-	srcfile = AllocateFile(srcpath, "rt");
+	srcfile = AllocateFile(srcpath, PG_BINARY_R);
 
 	if (srcfile == NULL)
 	{
@@ -516,7 +516,7 @@ ora_utl_file_fcopy(PG_FUNCTION_ARGS)
 	}
 
 	/* Open without truncating: another name may refer to the source inode. */
-	dstfile = AllocateFile(dstpath, "at");
+	dstfile = AllocateFile(dstpath, PG_BINARY_A);
 
 	if (dstfile == NULL)
 	{
@@ -1156,9 +1156,11 @@ same_copy_file(FILE *srcfile, FILE *dstfile)
 
 /*
  * Copy an inclusive range of lines without interpreting their contents as C
- * strings.  A line may contain NUL bytes or span many buffers.  Check for
- * interrupts per buffer, including while skipping a long line.  AllocateFile
- * closes both streams if an error or cancellation aborts the operation.
+ * strings.  Binary streams avoid Windows text-mode Ctrl+Z EOF handling, while
+ * line counting still follows newline bytes.  A line may contain NUL bytes or
+ * span many buffers.  Check for interrupts per buffer, including while skipping
+ * a long line.  AllocateFile closes both streams if an error or cancellation
+ * aborts the operation.
  */
 static void
 copy_text_file(FILE *srcfile, FILE *dstfile, int start_line, int end_line)

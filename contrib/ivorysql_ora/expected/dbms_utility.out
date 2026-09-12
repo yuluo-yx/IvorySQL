@@ -532,9 +532,9 @@ BEGIN
   v_wall := DBMS_UTILITY.GET_TIME;
   v_cpu := DBMS_UTILITY.GET_CPU_TIME;
 
-  SELECT pg_catalog.pg_typeof(sys.ora_get_time())
+  SELECT pg_catalog.pg_typeof(DBMS_UTILITY.GET_TIME)
     INTO v_wall_type;
-  SELECT pg_catalog.pg_typeof(sys.ora_get_cpu_time())
+  SELECT pg_catalog.pg_typeof(DBMS_UTILITY.GET_CPU_TIME)
     INTO v_cpu_type;
 
   -- Compare type OIDs because search_path affects displayed type names.

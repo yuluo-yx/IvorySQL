@@ -14,6 +14,44 @@ END;
 $$ LANGUAGE plpgsql;
 /
 
+CREATE FUNCTION fcopy_shell_quote(value text) RETURNS text
+AS $$
+BEGIN
+    RETURN $q$'$q$ || replace(value, $q$'$q$, $q$'\''$q$) || $q$'$q$;
+END;
+$$ LANGUAGE plpgsql;
+/
+
+CREATE FUNCTION fcopy_link_fixture(kind text, linkname text) RETURNS void
+AS $$
+DECLARE
+    data_dir text := current_setting('data_directory');
+    link_path text := data_dir || '/' || linkname;
+    source_path text := data_dir || '/fcopy-source';
+    command text;
+BEGIN
+    BEGIN
+        PERFORM sys.ora_utl_file_fremove('fcopy_test', linkname);
+    EXCEPTION
+        WHEN others THEN
+            NULL;
+    END;
+
+    IF kind = 'hard' THEN
+        command := 'ln ' || fcopy_shell_quote(source_path) || ' ' ||
+            fcopy_shell_quote(link_path);
+    ELSIF kind = 'symbolic' THEN
+        command := 'ln -s ' || fcopy_shell_quote('fcopy-source') || ' ' ||
+            fcopy_shell_quote(link_path);
+    ELSE
+        RAISE EXCEPTION 'unexpected link kind: %', kind;
+    END IF;
+
+    EXECUTE format('COPY (SELECT NULL::text WHERE false) TO PROGRAM %L', command);
+END;
+$$ LANGUAGE plpgsql;
+/
+
 CREATE TABLE fcopy_cases (
     name text PRIMARY KEY,
     first_line bytea,
@@ -81,7 +119,8 @@ SELECT fcopy_fixture('fcopy-source', substring(decode('00', 'hex'), 1, 0));
 SELECT sys.ora_utl_file_fcopy('fcopy_test', 'fcopy-source', 'fcopy_test', 'fcopy-destination');
 SELECT octet_length(pg_read_binary_file('fcopy-destination')) AS empty_copy;
 
--- Self-copy must fail before truncation, including through directory aliases.
+-- Self-copy must fail before truncation, including directory, hard-link, and
+-- symbolic-link aliases.
 SELECT fcopy_fixture('fcopy-source', decode('70726573657276650a', 'hex'));
 SELECT sys.ora_utl_file_fcopy('fcopy_test', 'fcopy-source', 'fcopy_test', 'fcopy-source');
 SELECT encode(pg_read_binary_file('fcopy-source'), 'hex') AS after_self_copy;
@@ -89,6 +128,12 @@ INSERT INTO sys.utl_file_directory(dirname, dir)
 SELECT 'fcopy_alias', current_setting('data_directory');
 SELECT sys.ora_utl_file_fcopy('fcopy_test', 'fcopy-source', 'fcopy_alias', 'fcopy-source', 2, 2);
 SELECT encode(pg_read_binary_file('fcopy-source'), 'hex') AS after_alias_copy;
+SELECT fcopy_link_fixture('hard', 'fcopy-hard-source');
+SELECT sys.ora_utl_file_fcopy('fcopy_test', 'fcopy-hard-source', 'fcopy_test', 'fcopy-source', 1, 1);
+SELECT encode(pg_read_binary_file('fcopy-source'), 'hex') AS after_hard_link_copy;
+SELECT fcopy_link_fixture('symbolic', 'fcopy-symlink-source');
+SELECT sys.ora_utl_file_fcopy('fcopy_test', 'fcopy-symlink-source', 'fcopy_test', 'fcopy-source', 1, 1);
+SELECT encode(pg_read_binary_file('fcopy-source'), 'hex') AS after_symlink_copy;
 
 -- Parameter validation must precede opening or truncating the destination.
 SELECT fcopy_fixture('fcopy-destination', decode('6b656570', 'hex'));
@@ -100,9 +145,13 @@ SELECT encode(pg_read_binary_file('fcopy-destination'), 'hex') AS after_invalid_
 -- Recovery after errors must leave copying usable in the same session.
 SELECT sys.ora_utl_file_fcopy('fcopy_test', 'fcopy-source', 'fcopy_test', 'fcopy-destination');
 SELECT pg_read_binary_file('fcopy-source') = pg_read_binary_file('fcopy-destination') AS recovered;
+SELECT sys.ora_utl_file_fremove('fcopy_test', 'fcopy-hard-source');
+SELECT sys.ora_utl_file_fremove('fcopy_test', 'fcopy-symlink-source');
 SELECT sys.ora_utl_file_fremove('fcopy_test', 'fcopy-source');
 SELECT sys.ora_utl_file_fremove('fcopy_test', 'fcopy-destination');
 DELETE FROM sys.utl_file_directory WHERE dirname IN ('fcopy_test', 'fcopy_alias');
 DROP FUNCTION fcopy_verify(text, integer, integer);
+DROP FUNCTION fcopy_link_fixture(text, text);
+DROP FUNCTION fcopy_shell_quote(text);
 DROP FUNCTION fcopy_fixture(text, bytea);
 DROP TABLE fcopy_cases;

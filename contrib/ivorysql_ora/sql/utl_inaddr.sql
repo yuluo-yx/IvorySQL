@@ -6,7 +6,8 @@
 -- to stable INFO messages.
 --
 
--- The internal functions retain their defaults, volatility, and parallel mode.
+-- The internal functions retain their defaults, volatility, parallel mode, and
+-- private execution boundary, while the package API is public.
 DECLARE
   v_count INTEGER;
 BEGIN
@@ -27,7 +28,41 @@ BEGIN
   IF v_count != 2 THEN
     RAISE EXCEPTION 'UTL_INADDR internal function metadata is incomplete';
   END IF;
-  RAISE INFO 'UTL_INADDR catalog contract: ok';
+
+  SELECT count(*)
+    INTO v_count
+    FROM pg_catalog.pg_proc p
+    JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(
+      coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) acl
+   WHERE n.nspname = 'sys'
+     AND p.proname IN ('utl_inaddr_get_host_address',
+                       'utl_inaddr_get_host_name')
+     AND p.pronargs = 1
+     AND acl.grantee = 0
+     AND acl.privilege_type = 'EXECUTE';
+
+  IF v_count != 0 THEN
+    RAISE EXCEPTION 'UTL_INADDR internal functions expose PUBLIC EXECUTE';
+  END IF;
+
+  SELECT count(*)
+    INTO v_count
+    FROM pg_catalog.pg_package p
+    JOIN pg_catalog.pg_namespace n ON n.oid = p.pkgnamespace
+    CROSS JOIN LATERAL pg_catalog.aclexplode(
+      coalesce(p.pkgacl, pg_catalog.acldefault('P', p.pkgowner))) acl
+   WHERE n.nspname = 'sys'
+     AND p.pkgname = 'utl_inaddr'
+     AND p.define_invok
+     AND acl.grantee = 0
+     AND acl.privilege_type = 'EXECUTE';
+
+  IF v_count != 1 THEN
+    RAISE EXCEPTION 'UTL_INADDR package privilege contract is incomplete';
+  END IF;
+
+  RAISE INFO 'UTL_INADDR catalog and privilege contract: ok';
 END;
 /
 
@@ -52,6 +87,24 @@ BEGIN
     RAISE EXCEPTION 'localhost did not resolve to an address';
   END IF;
   RAISE INFO 'UTL_INADDR localhost forward lookup: ok';
+END;
+/
+
+-- IPv6 loopback should exercise both forward and reverse resolution paths.
+DECLARE
+  v_address VARCHAR2(4000);
+  v_hostname VARCHAR2(4000);
+BEGIN
+  v_address := utl_inaddr.get_host_address('::1');
+  IF v_address IS NULL OR length(v_address) = 0 THEN
+    RAISE EXCEPTION 'IPv6 loopback did not resolve to an address';
+  END IF;
+
+  v_hostname := utl_inaddr.get_host_name('::1');
+  IF v_hostname IS NULL OR length(v_hostname) = 0 THEN
+    RAISE EXCEPTION 'IPv6 loopback did not resolve to a host name';
+  END IF;
+  RAISE INFO 'UTL_INADDR IPv6 lookup: ok';
 END;
 /
 
@@ -89,6 +142,15 @@ BEGIN
     RAISE EXCEPTION 'local host name did not resolve to an address';
   END IF;
   RAISE INFO 'UTL_INADDR default host address: ok';
+END;
+/
+
+-- The public package should expose the mapped error as a client-visible
+-- failure.
+DECLARE
+  v_hostname VARCHAR2(4000);
+BEGIN
+  v_hostname := utl_inaddr.get_host_name('not-an-ip-address');
 END;
 /
 

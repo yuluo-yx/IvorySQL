@@ -21,7 +21,10 @@ COMMENT ON FUNCTION sys.utl_inaddr_get_host_address(text) IS
 COMMENT ON FUNCTION sys.utl_inaddr_get_host_name(text) IS
   'Internal implementation of UTL_INADDR.GET_HOST_NAME';
 
-CREATE OR REPLACE PACKAGE utl_inaddr AUTHID CURRENT_USER IS
+REVOKE EXECUTE ON FUNCTION sys.utl_inaddr_get_host_address(text) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION sys.utl_inaddr_get_host_name(text) FROM PUBLIC;
+
+CREATE OR REPLACE PACKAGE utl_inaddr AUTHID DEFINER IS
   -- No Oracle network ACL equivalent exists yet; retain the public exception.
   NETWORK_ACCESS_DENIED EXCEPTION;
   PRAGMA EXCEPTION_INIT(NETWORK_ACCESS_DENIED, -24247);
@@ -59,3 +62,8 @@ CREATE OR REPLACE PACKAGE BODY utl_inaddr IS
     RETURN v_hostname;
   END GET_HOST_NAME;
 END utl_inaddr;
+
+-- Packages default to no PUBLIC privileges at all (unlike plain FUNCTION/
+-- PROCEDURE, which grant EXECUTE to PUBLIC by default) -- without this,
+-- only the role that ran CREATE EXTENSION could call any subprogram here.
+GRANT EXECUTE ON PACKAGE utl_inaddr TO PUBLIC;

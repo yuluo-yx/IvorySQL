@@ -20730,7 +20730,13 @@ processExtensionTables(Archive *fout, ExtensionInfo extinfo[],
 				TableInfo  *configtbl;
 				Oid			configtbloid = atooid(extconfigarray[j]);
 				bool		dumpobj =
-				curext->dobj.dump & DUMP_COMPONENT_DEFINITION;
+					(curext->dobj.dump & DUMP_COMPONENT_DEFINITION) ||
+					(curext->dobj.catId.oid <= g_last_builtin_oid &&
+					 (dopt->include_everything || extension_include_oids.head != NULL));
+
+				/*
+				 * Preserve registered user configuration data even when built-in extension definitions are omitted.
+				 */
 
 				configtbl = findTableByOid(configtbloid);
 				if (configtbl == NULL)

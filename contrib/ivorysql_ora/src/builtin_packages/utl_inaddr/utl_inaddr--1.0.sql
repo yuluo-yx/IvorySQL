@@ -21,11 +21,12 @@ COMMENT ON FUNCTION sys.utl_inaddr_get_host_address(text) IS
 COMMENT ON FUNCTION sys.utl_inaddr_get_host_name(text) IS
   'Internal implementation of UTL_INADDR.GET_HOST_NAME';
 
-REVOKE EXECUTE ON FUNCTION sys.utl_inaddr_get_host_address(text) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION sys.utl_inaddr_get_host_name(text) FROM PUBLIC;
+-- The invoker-rights package needs EXECUTE; direct calls enforce the same ACL in C.
+GRANT EXECUTE ON FUNCTION sys.utl_inaddr_get_host_address(text) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION sys.utl_inaddr_get_host_name(text) TO PUBLIC;
 
 CREATE OR REPLACE PACKAGE utl_inaddr AUTHID CURRENT_USER IS
-  -- No Oracle network ACL equivalent exists yet; retain the public exception.
+  -- C checks the invoker's resolve privilege before resolution and raises this error on denial.
   NETWORK_ACCESS_DENIED EXCEPTION;
   PRAGMA EXCEPTION_INIT(NETWORK_ACCESS_DENIED, -24247);
 
